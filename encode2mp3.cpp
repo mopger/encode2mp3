@@ -43,9 +43,23 @@ struct PathName
     string   name;
 };
 
+#pragma pack(push, 1)
 struct PcmHeader {
-
+    char     chunkID[4];
+    uint32_t chunkSize;
+    char     format[4];
+    char     subchunk1ID[4];
+    uint32_t subchunk1Size;
+    uint16_t audioFormat;
+    uint16_t numChannels;
+    int32_t  sampleRate;
+    uint32_t byteRate;
+    uint16_t blockAlign;
+    uint16_t bitsPerSample;
+    char     subchunk2ID[4];
+    uint32_t subchunk2Size;
 };
+#pragma pack (pop)
 
 using PathNames = vector<PathName>;
 
@@ -105,7 +119,7 @@ PathNames getCanonicalDirContents(char const* dir)
     return pathNames;
 }
 
-
+// filter files by extentions
 PathNames filterFiles(PathNames const& pathNames, vector<string> const& extentions)
 {
     PathNames out;
@@ -127,7 +141,7 @@ PathNames filterFiles(PathNames const& pathNames, vector<string> const& extentio
             if (*(name.rbegin() + extSize) != '.') // check extention has a '.'
                 continue;
 
-            addItd = std::equal(name.rbegin(), name.rbegin() + extSize, extention.rbegin());
+            addItd = std::equal(name.rbegin(), name.rbegin() + extSize, extention.rbegin()); //FIXME: case-sensitive
 
             if (addItd) {
                 out.push_back(pathName);
@@ -139,9 +153,14 @@ PathNames filterFiles(PathNames const& pathNames, vector<string> const& extentio
 }
 
 
-PcmHeader parsePchHeader(std::ifstream& pcm)
+PcmHeader readPcmHeader(std::ifstream& pcm)
 {
-    return {};
+    PcmHeader pcmHeader;
+    static_assert (sizeof(PcmHeader) == 44, "Wrong PCM header structure!");
+    pcm.read(reinterpret_cast<char*>(&pcmHeader), sizeof(PcmHeader));
+    assert(pcmHeader.audioFormat == 1); // PCM only
+    assert(pcmHeader.bitsPerSample == 16);
+    return pcmHeader;
 }
 
 
@@ -153,19 +172,43 @@ void* encode2mp3Worker(void* file)
         outFileName.pop_back();
     outFileName.append("mp3");
 
-    std::ifstream inPcm(inFileName, std::ifstream::in);
-    std::ofstream outMp3(outFileName.c_str(), std::ofstream::out);
-    lame_t pLameGlobalFlags = lame_init();
-    auto header = parsePchHeader(inPcm);
-
-
-    pthread_mutex_lock(&encodeMtx); // no need to lock
+    pthread_mutex_lock(&encodeMtx);
     cout << "in: " << inFileName << '\n' << "out: " << outFileName << "\n";
     pthread_mutex_unlock(&encodeMtx);
 
+    std::ifstream inPcm(inFileName, std::ifstream::in);
+    std::ofstream outMp3(outFileName.c_str(), std::ios_base::binary | std::ofstream::out);
+    lame_t pLameGlobalFlags = lame_init();
+    auto pcmHeader = readPcmHeader(inPcm);
+
+    int32_t rv = 0;
+    rv = ::lame_set_mode(pLameGlobalFlags, pcmHeader.numChannels == 1 ? MONO : STEREO); assert(rv == 0);
+    rv = ::lame_set_in_samplerate(pLameGlobalFlags, pcmHeader.sampleRate);              assert(rv == 0);
+    rv = ::lame_set_VBR(pLameGlobalFlags, vbr_off);                                     assert(rv == 0);
+    rv = ::lame_init_params(pLameGlobalFlags);                                          assert(rv == 0);
+
+    const constexpr size_t PCM_NUM_ELEMS = 8192; // elements
+    const constexpr size_t MP3_BUF_SIZE  = 8192; // bytes
+
+    int16_t pcmBuffer[2 * PCM_NUM_ELEMS];
+    uint8_t mp3Buffer[MP3_BUF_SIZE];
+    int32_t toWrite = 0;
+
+    do {
+        inPcm.read(reinterpret_cast<char*>(&pcmBuffer), sizeof(pcmBuffer));
+        auto const bytesRead = static_cast<int32_t>(inPcm.gcount());
+        auto const samplesRead = bytesRead / 2 / static_cast<int>(sizeof(int16_t));
+        toWrite = ::lame_encode_buffer_interleaved(pLameGlobalFlags, pcmBuffer, samplesRead, mp3Buffer, MP3_BUF_SIZE);
+        assert(toWrite > 0);
+        outMp3.write(reinterpret_cast<char*>(&mp3Buffer), toWrite);
+    } while (!inPcm.eof());
+
+    toWrite = ::lame_encode_flush(pLameGlobalFlags, mp3Buffer, MP3_BUF_SIZE);
+    outMp3.write(reinterpret_cast<char*>(&mp3Buffer), toWrite);
+
     inPcm.close();
     outMp3.close();
-    lame_close(pLameGlobalFlags);
+    ::lame_close(pLameGlobalFlags);
     return nullptr;
 }
 
