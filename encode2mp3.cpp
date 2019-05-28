@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <dirent.h>
 #include <iostream>
+#include <fstream>
 #include <string.h>
 #include <string>
 #include <vector>
@@ -40,6 +41,10 @@ struct PathName
 {
     PathType type;
     string   name;
+};
+
+struct PcmHeader {
+
 };
 
 using PathNames = vector<PathName>;
@@ -134,27 +139,45 @@ PathNames filterFiles(PathNames const& pathNames, vector<string> const& extentio
 }
 
 
-void* encode(void* file)
+PcmHeader parsePchHeader(std::ifstream& pcm)
 {
-    thread_local lame_t pLameGlobalFlags = lame_init();
-    pthread_mutex_lock(&encodeMtx);
+    return {};
+}
 
-    cout << "file: " << reinterpret_cast<const char*>(file) << '\n';
 
+void* encode2mp3Worker(void* file)
+{
+    auto inFileName = static_cast<char const*>(file);
+    auto outFileName = string(inFileName);
+    while (outFileName.back() != '.')
+        outFileName.pop_back();
+    outFileName.append("mp3");
+
+    std::ifstream inPcm(inFileName, std::ifstream::in);
+    std::ofstream outMp3(outFileName.c_str(), std::ofstream::out);
+    lame_t pLameGlobalFlags = lame_init();
+    auto header = parsePchHeader(inPcm);
+
+
+    pthread_mutex_lock(&encodeMtx); // no need to lock
+    cout << "in: " << inFileName << '\n' << "out: " << outFileName << "\n";
     pthread_mutex_unlock(&encodeMtx);
+
+    inPcm.close();
+    outMp3.close();
     lame_close(pLameGlobalFlags);
     return nullptr;
 }
 
 
-int encodeAll(PathNames const& files)
+int encodeAll2Mp3(PathNames const& files)
 {
     vector<Worker> workers(files.size());
 
     for (size_t idx = 0; idx < files.size(); ++idx) {
         void* file = reinterpret_cast<void*>(const_cast<char*>(files[idx].name.c_str()));
 
-        if (::pthread_create(&workers[idx].thread, nullptr, &encode, file) != 0)
+        if (::pthread_create(&workers[idx].thread, nullptr, &encode2mp3Worker, file) != 0)
             throw std::runtime_error("pthread_create() failed");
     }
 
@@ -189,5 +212,5 @@ int main(int argNum, char** args)
         return -1;
     }
 
-    return encodeAll(files);
+    return encodeAll2Mp3(files);
 }
