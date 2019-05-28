@@ -173,7 +173,7 @@ void* encode2mp3Worker(void* file)
     outFileName.append("mp3");
 
     pthread_mutex_lock(&encodeMtx);
-    cout << "in: " << inFileName << '\n' << "out: " << outFileName << "\n";
+    cout << "Encoding file " << inFileName << " to " << outFileName << std::endl;
     pthread_mutex_unlock(&encodeMtx);
 
     std::ifstream inPcm(inFileName, std::ifstream::in);
@@ -190,7 +190,7 @@ void* encode2mp3Worker(void* file)
     const constexpr size_t PCM_NUM_ELEMS = 8192; // elements
     const constexpr size_t MP3_BUF_SIZE  = 8192; // bytes
 
-    int16_t pcmBuffer[2 * PCM_NUM_ELEMS];
+    int16_t pcmBuffer[2 * PCM_NUM_ELEMS]; // sizeof(int16_t) * 2 * PCM_NUM_ELEMS
     uint8_t mp3Buffer[MP3_BUF_SIZE];
     int32_t toWrite = 0;
 
@@ -209,6 +209,11 @@ void* encode2mp3Worker(void* file)
     inPcm.close();
     outMp3.close();
     ::lame_close(pLameGlobalFlags);
+
+    pthread_mutex_lock(&encodeMtx);
+    cout << "Finished encoding file " << outFileName << std::endl;
+    pthread_mutex_unlock(&encodeMtx);
+
     return nullptr;
 }
 
