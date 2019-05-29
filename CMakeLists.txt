@@ -9,7 +9,16 @@ find_package           (Threads REQUIRED)
 target_link_libraries  (${PROJECT_NAME} Threads::Threads)
 
 #lame
-#set                    (LAME_LIBRARY mp3lame)
-#target_link_libraries  (${PROJECT_NAME}  ${LAME_LIBRARY})
-#find_library            (mp3lame HINTS ${PROJECT_SOURCE_DIR/..})
-target_link_libraries   (${PROJECT_NAME} mp3lame)
+add_library            (mp3lame STATIC IMPORTED)
+if (UNIX)
+  message              ("OS: UNIX")
+  set_property         (TARGET mp3lame PROPERTY IMPORTED_LOCATION /usr/local/lib/libmp3lame.a)
+endif (UNIX)
+
+if (WIN32)
+  message              ("OS: Windows")
+  include_directories  (${PROJECT_SOURCE_DIR}/includes)
+  set_property         (TARGET mp3lame PROPERTY IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/libs/libmp3lame.a)
+endif (WIN32)
+
+target_link_libraries  (${PROJECT_NAME} mp3lame)
