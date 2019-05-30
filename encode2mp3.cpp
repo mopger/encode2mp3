@@ -22,142 +22,19 @@
 #include <errno.h>
 #include <pthread.h> // POSIX
 
-#ifdef __linux__
-  #include <dirent.h>
-  #include <sys/stat.h>
-#else
-  #include <windows.h>
-  #include <tchar.h>
-#endif
-
 #include <lame/lame.h>
+
+#include "encode2mp3.hpp"
+#include "filesystem.hpp"
 
 using std::vector;
 using std::string;
 using std::cout;
-
-enum class PathType : uint8_t { File, Dir };
-
-struct Worker
-{
-    int32_t   status;
-    pthread_t thread;
-};
-
-struct PathName
-{
-    PathType type;
-    string   name;
-};
-
-#pragma pack(push, 1)
-struct PcmHeader
-{
-    char     chunkID[4]; // all char[] here is text fields
-    uint32_t chunkSize;
-    char     format[4];
-    char     subchunk1ID[4];
-    uint32_t subchunk1Size;
-    uint16_t audioFormat;
-    uint16_t numChannels;
-    int32_t  sampleRate;
-    uint32_t byteRate;
-    uint16_t blockAlign;
-    uint16_t bitsPerSample;
-    char     subchunk2ID[4];
-    uint32_t subchunk2Size;
-};
-#pragma pack (pop)
-
-using PathNames = vector<PathName>;
+using std::cerr;
 
 static pthread_mutex_t consoleMtx;
 static vector<string> extentions = { "wav", "wave", "pcm" }; // lower case
 
-
-[[noreturn]]
-static void printErrorAndAbort(char const* msg)
-{
-    ::perror(msg);
-    ::abort();
-}
-
-#ifdef __linux__
-// DIR or FILE or DIE!
-static PathType getPathType(char const* path)
-{
-    struct stat s;
-
-    if (::stat(path, &s) == 0) {
-        if (s.st_mode & S_IFDIR)
-            return PathType::Dir;
-        if (s.st_mode & S_IFREG)
-            return PathType::File;
-    }
-
-    printErrorAndAbort("Path is neither a file nor a dir");
-}
-
-
-static PathNames getCanonicalDirContents(char const* dir)
-{
-    constexpr auto const separator  = "/"; // supported by both linux and windows
-    PathNames pathNames;
-    char realPath[PATH_MAX] = { 0, };
-    char tmpBuf[PATH_MAX] = { 0, };
-    auto const dirLen = ::strlen(dir);
-    auto const separatorLen = ::strlen(separator);
-
-    if (DIR* dp = ::opendir(dir)) {
-        while (auto entry = ::readdir(dp)) {
-            ::strcpy(tmpBuf, dir);
-            ::strcpy(tmpBuf + dirLen, separator);
-            ::strcpy(tmpBuf + dirLen + separatorLen, entry->d_name);
-
-            if (char const* pth = ::realpath(tmpBuf, realPath)) {
-                pathNames.push_back({ getPathType(pth), pth }); // emplace don't work
-                continue;
-            }
-
-            printErrorAndAbort("Got an error when parsing file list");
-        }
-
-        ::closedir(dp);
-    }
-
-    return pathNames;
-}
-#else
-// return a vector of the canonicalized absolute pathnames for
-// all files and dirs (even . and ..) that belong to the given
-// directory dir, terminates the app on error
-static PathNames getCanonicalDirContents(char const* dir)
-{
-    constexpr auto const separator  = "/"; // supported by both linux and windows
-    PathNames pathNames;
-    //char realPath[MAX_PATH] = { 0, };
-    char tmpBuf[MAX_PATH] = { 0, };
-    auto const dirLen = ::strlen(dir);
-    auto const separatorLen = ::strlen(separator);
-
-    #define BUFSIZE 4096
-
-    TCHAR   buffer[BUFSIZE] = TEXT("");
-    //TCHAR   buf[BUFSIZE]    = TEXT("");
-    TCHAR** lppPart         = {NULL};
-
-    auto rv = ::GetFullPathName(dir, BUFSIZE, buffer, lppPart);
-    if (rv == 0)
-        cout << "Error!" << std::endl;
-    else {
-        cout << buffer << std::endl;
-        if (lppPart)
-            cout << lppPart << std::endl;
-    }
-
-    return {};
-}
-#endif
 
 // filter set of files by their extentions
 static PathNames filterFiles(PathNames const& pathNames, vector<string> const& extentions)
@@ -210,10 +87,10 @@ static PcmHeader readPcmHeader(std::ifstream& pcm)
 static bool isValid(PcmHeader const& h)
 {
     return h.audioFormat   == 1
-        && h.bitsPerSample >= 8
-        && h.numChannels    > 0
-        && h.sampleRate     > 0
-        && h.bitsPerSample  > 0;
+            && h.bitsPerSample >= 8
+            && h.numChannels    > 0
+            && h.sampleRate     > 0
+            && h.bitsPerSample  > 0;
 }
 
 // test lame functions for success or throw with details
@@ -260,9 +137,9 @@ static void* encode2mp3Worker(void* file)
         inPcm.close();
 
         if (pcmHeader.audioFormat != 1)
-            cout << "Unsupported audio format: " << inFileName << std::endl;
+            cerr << "Unsupported audio format: " << inFileName << '\n';
         else
-            cout << "Can't encode: broken header in " << inFileName << std::endl;
+            cerr << "Can't encode: broken header in " << inFileName << '\n';
 
         pthread_mutex_unlock(&consoleMtx);
         return nullptr;
@@ -283,11 +160,11 @@ static void* encode2mp3Worker(void* file)
         okOrThrow(::lame_set_in_samplerate(pLameGF, pcmHeader.sampleRate),   __LINE__);
         okOrThrow(::lame_set_VBR          (pLameGF, vbr_default),            __LINE__);
         okOrThrow(::lame_set_quality      (pLameGF, 5),                      __LINE__);
-        //okOrThrow(::lame_set_preset       (pLameGF, 128),                    __LINE__);
+        //okOrThrow(::lame_set_preset       (pLameGF, 128),                    __LINE__); //TODO: fails often, need further investigation
         okOrThrow(::lame_init_params      (pLameGF),                         __LINE__);
     }
-    catch (std::runtime_error& e) {
-        cout << e.what() << std::endl;
+    catch (std::runtime_error const& e) {
+        cerr << e.what() << '\n';
         ::lame_close(pLameGF);
         inPcm.close();
         return nullptr;
@@ -309,9 +186,10 @@ static void* encode2mp3Worker(void* file)
         auto const samplesRead = bytesRead / (pcmHeader.bitsPerSample / 8) / pcmHeader.numChannels;
 
         if (pcmHeader.bitsPerSample == 8)
-            transform8To16Bit(pcmBuffer, sizeof(pcmBuffer));
+            transform8To16Bit(pcmBuffer, sizeof(pcmBuffer)); // TODO: bad quality, need resampling
 
         if (isMono) {
+            //TODO: allocate and fill with 0's once, test if it s not modified by the lame_encode_buffer()
             int16_t dummyPcmRightChannel[sizeof(pcmBuffer)] = {}; // right channel is ignored in MONO mode
             toWrite = ::lame_encode_buffer(pLameGF, pcmBuffer, dummyPcmRightChannel, samplesRead, mp3Buffer, MP3_BUF_SIZE);
         }
@@ -319,7 +197,7 @@ static void* encode2mp3Worker(void* file)
             toWrite = ::lame_encode_buffer_interleaved(pLameGF, pcmBuffer, samplesRead, mp3Buffer, MP3_BUF_SIZE);
 
         if (toWrite == 0)
-            std::cerr << "toWrite == 0 on " << inFileName;
+            std::cerr << "toWrite == 0 on " << inFileName << '\n';
 
         outMp3.write(reinterpret_cast<char*>(&mp3Buffer), toWrite);
     } while (!inPcm.eof());
@@ -332,7 +210,7 @@ static void* encode2mp3Worker(void* file)
     outMp3.close();
 
     pthread_mutex_lock(&consoleMtx);
-    cout << "Finished encoding file " << outFileName << std::endl;
+    cout << "Finished encoding file " << outFileName << '\n';
     pthread_mutex_unlock(&consoleMtx);
     return nullptr;
 }
@@ -349,36 +227,39 @@ static void encodeAll2Mp3(PathNames const& files)
             throw std::runtime_error("pthread_create() failed");
     }
 
-    for (auto& worker : workers) {
-        void* pstatus = &worker.status;
-        ::pthread_join(worker.thread, &pstatus);
-    }
+    for (auto& worker : workers)
+        ::pthread_join(worker.thread, &worker.pStatus);
+}
+
+
+static void printExtentionsMsg()
+{
+    cout << "Supported file extentions: ";
+    for (auto const& ext : extentions)
+        cout << '.' << ext << " ";
+    cout << '\n';
 }
 
 
 int main(int argNum, char** args)
 {
-    if (argNum != 2) {
-        cout << "Error: folder not specified!\n"
-                "Usage: encode2mp3 folder_name\n"
-                "Supported extentions: ";
+    printExtentionsMsg();
 
-        for (auto const& extention : extentions)
-            cout << "." << extention << " ";
-        cout << std::endl;
+    if (argNum != 2) {
+        cerr << "Error: folder not specified!\n"
+                "Usage: encode2mp3 folder_name\n";
+
         return -1;
     }
-
-    cout << "argument: " << args[1] << std::endl;
 
     auto const& files = filterFiles(getCanonicalDirContents(args[1]), extentions);
 
     if (files.empty()) {
-        cout << "The directory is not exists or contain any supported file!" << std::endl;
+        cerr << "An error happened or the directory doesn't exist or has no supported files!\n";
         return -1;
     }
 
-    cout << "Found " << files.size() << " files to encode" << std::endl;
+    cout << "Found " << files.size() << " files to encode\n";
     encodeAll2Mp3(files);
     return 0;
 }
