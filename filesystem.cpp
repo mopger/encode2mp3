@@ -2,12 +2,12 @@
 #include <string.h>
 #include <string>
 
-#ifdef __linux__
-#include <dirent.h>
-#include <sys/stat.h>
+#if defined (__linux__) || defined (__linux) || defined (__gnu_linux__)
+  #include <dirent.h>
+  #include <sys/stat.h>
 #else
-#include <windows.h>
-#include <tchar.h>
+  #include <windows.h>
+  #include <tchar.h>
 #endif
 
 #include "filesystem.hpp"
@@ -25,7 +25,7 @@ static void printErrorAndAbort(char const* msg)
 }
 
 
-#ifdef __linux__
+#if defined (__linux__) || defined (__linux) || defined (__gnu_linux__)
 // DIR or FILE or DIE!
 static PathType getPathType(char const* path)
 {
@@ -38,31 +38,33 @@ static PathType getPathType(char const* path)
             return PathType::File;
     }
 
-    printErrorAndAbort("Path is neither a file nor a dir");
+    printErrorAndAbort("ERROR: giver dir has is neither a file nor a dir object!");
 }
 
-
+// return a vector of the canonicalized absolute pathnames for
+// all files and dirs (even . and ..) that belong to the given
+// directory dir, terminates the app on error
 PathNames getCanonicalDirContents(char const* dir)
 {
     constexpr auto const separator  = "/";
     PathNames pathNames;
     char realPath[PATH_MAX] = { 0, };
-    char tmpBuf[PATH_MAX] = { 0, };
+    char filePath[PATH_MAX] = { 0, };
     auto const dirLen = ::strlen(dir);
     auto const separatorLen = ::strlen(separator);
 
     if (DIR* dp = ::opendir(dir)) {
         while (auto entry = ::readdir(dp)) {
-            ::strcpy(tmpBuf, dir);
-            ::strcpy(tmpBuf + dirLen, separator);
-            ::strcpy(tmpBuf + dirLen + separatorLen, entry->d_name);
+            ::strcpy(filePath, dir);
+            ::strcpy(filePath + dirLen, separator);
+            ::strcpy(filePath + dirLen + separatorLen, entry->d_name);
 
-            if (char const* pth = ::realpath(tmpBuf, realPath)) {
+            if (char const* pth = ::realpath(filePath, realPath)) {
                 pathNames.push_back({ getPathType(pth), pth }); // emplace doesn't work
                 continue;
             }
 
-            printErrorAndAbort("Got an error when parsing file list");
+            printErrorAndAbort("ERROR: parsing file list failed");
         }
 
         ::closedir(dp);
@@ -71,9 +73,6 @@ PathNames getCanonicalDirContents(char const* dir)
     return pathNames;
 }
 #else
-// return a vector of the canonicalized absolute pathnames for
-// all files and dirs (even . and ..) that belong to the given
-// directory dir, terminates the app on error
 PathNames getCanonicalDirContents(char const* dir)
 {
     auto static const constexpr BUF_SZ     = 4096;
@@ -84,12 +83,12 @@ PathNames getCanonicalDirContents(char const* dir)
     auto rv = ::GetFullPathName(dir, BUF_SZ, buffer, lppPart);
 
     if (rv == 0) {
-        cout << "Error!" << std::endl;
+        cerr << "ERROR: Can't get full path!\n";
         return {};
     }
 
     if (::strlen(buffer) > (MAX_PATH - 3)) {
-        cerr << "Directory path is too long!\n";
+        cerr << "ERROR: directory path is too long!\n";
         return {};
     }
 
@@ -102,7 +101,7 @@ PathNames getCanonicalDirContents(char const* dir)
     hFind = ::FindFirstFile(path, &ffd);
 
     if (hFind == INVALID_HANDLE_VALUE) {
-        cerr << "FindFirstFile\n";
+        cerr << "ERROR: FindFirstFile wrong status\n";
         return {};
     }
 
@@ -116,7 +115,7 @@ PathNames getCanonicalDirContents(char const* dir)
     } while (::FindNextFile(hFind, &ffd) != 0);
 
     if (::GetLastError() != ERROR_NO_MORE_FILES) {
-        cerr << "FindNextFile\n";
+        cerr << "ERROR: FindNextFile wrong status\n";
         return {};
     }
 

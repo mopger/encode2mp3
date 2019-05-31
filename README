@@ -1,16 +1,20 @@
 Prerequisites:
   cmake
 
+Links:
+  lame https://sourceforge.net/projects/lame/files/latest/download
+
 To build on Linux:
-1) download and extract lame sources somwhere into /home dir
+1) download and extract lame sources
 2) build lame by executing './configure && make && sudo make install'
 3) change dir to encode2mp3/build/
 4) generate Makefile by executing 'cmake -G "Unix Makefiles" ..'
 5) execute make
+6) start encoding by executing './encode2mp3 ../wave'
 
-To build on Windows:
+To build on Windows under Cygwin:
 1) install Cygwin with make and gcc-g++ packages
-2) download and extract lame sources somewhere into Cygwin's /home dir
+2) download and extract lame sources
 3) open lame-3.100/include/libmp3lame.sym and remove "lame_init_old" line
 4) build lame by executing './configure && make' (frontend rule will fail)
 5) copy lame-3.100/include/lame.h to encode2mp3/includes/lame/
@@ -18,4 +22,4 @@ To build on Windows:
 7) change dir to encode2mp3/build/
 8) generate Makefile by executing 'cmake -G "Unix Makefiles" ..'
 9) execute 'make'
-
+10)start encoding by executing './encode2mp3 ../wave'

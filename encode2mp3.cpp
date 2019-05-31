@@ -87,7 +87,7 @@ static PcmHeader readPcmHeader(std::ifstream& pcm)
 static bool isValid(PcmHeader const& h)
 {
     return h.audioFormat   == 1
-            && h.bitsPerSample >= 8
+            && h.bitsPerSample == 16 // transforming 8 bit to 16 resulting in an awful quality mp3
             && h.numChannels    > 0
             && h.sampleRate     > 0
             && h.bitsPerSample  > 0;
@@ -97,18 +97,7 @@ static bool isValid(PcmHeader const& h)
 static void okOrThrow(int32_t status, int line)
 {
     if (status != lame_errorcodes_t::LAME_OKAY)
-        throw std::runtime_error("Lame failed with code " + std::to_string(status) + " at line " + std::to_string(line));
-}
-
-// transform 8 bit samples to 16 bit to pass it to lame encoder
-// 8 bits are bad for mp3 so that's the reason why the encoder
-// doesn't accept 8 bit samples
-// maybe I shouldn't do that...
-static void transform8To16Bit(int16_t* arr16Bit, int64_t arrSz16Bit)
-{
-    int8_t* arr8Bit = reinterpret_cast<int8_t*>(arr16Bit);
-    std::copy_backward(arr8Bit, arr8Bit + arrSz16Bit, arr16Bit + arrSz16Bit);
-    //while (--arrSz16Bit >=0) arr16Bit[arrSz16Bit] = arr8Bit[arrSz16Bit];
+        throw std::runtime_error("ERROR: lame failed with code " + std::to_string(status) + " at line " + std::to_string(line));
 }
 
 // replace file extention with "mp3"
@@ -125,30 +114,26 @@ static string changeExtention(string fileName)
 // sadly, lame doesn't support multithread encoding for a singlle file...
 static void* encode2mp3Worker(void* file)
 {
-    auto inFileName = static_cast<char const*>(file);
+    auto inFileName  = static_cast<char const*>(file);
     auto outFileName = changeExtention(inFileName);
-
     std::ifstream inPcm(inFileName, std::ifstream::in);
-    auto pcmHeader = readPcmHeader(inPcm);
-
+    auto pcmHeader   = readPcmHeader(inPcm);
     pthread_mutex_lock(&consoleMtx);
 
     if (!isValid(pcmHeader)) {
-        inPcm.close();
-
         if (pcmHeader.audioFormat != 1)
-            cerr << "Unsupported audio format: " << inFileName << '\n';
+            cerr << "ERROR! Unsupported audio format: " << inFileName << "\n";
+        else if (pcmHeader.bitsPerSample != 16)
+            cerr << "ERROR! Only 16 bit per sample is supported: " << inFileName << "\n";
         else
-            cerr << "Can't encode: broken header in " << inFileName << '\n';
+            cerr << "ERROR! Broken header: " << inFileName << "\n";
 
         pthread_mutex_unlock(&consoleMtx);
+        inPcm.close();
         return nullptr;
     }
     else
-        cout << "Encoding file " << inFileName << " to " << outFileName << std::endl;
-
-    if (pcmHeader.bitsPerSample < 16)
-        cout << "Warning! 8 bits per sample will result in a low quality mp3!" << std::endl;
+        cout << "Encoding file to " << outFileName << "\n";
 
     pthread_mutex_unlock(&consoleMtx);
 
@@ -158,13 +143,14 @@ static void* encode2mp3Worker(void* file)
     try {
         okOrThrow(::lame_set_mode         (pLameGF, isMono ? MONO : STEREO), __LINE__);
         okOrThrow(::lame_set_in_samplerate(pLameGF, pcmHeader.sampleRate),   __LINE__);
-        okOrThrow(::lame_set_VBR          (pLameGF, vbr_default),            __LINE__);
+        okOrThrow(::lame_set_VBR          (pLameGF, vbr_off),                __LINE__); // keep it off, affects mp3 length somehow
         okOrThrow(::lame_set_quality      (pLameGF, 5),                      __LINE__);
-        //okOrThrow(::lame_set_preset       (pLameGF, 128),                    __LINE__); //TODO: fails often, need further investigation
         okOrThrow(::lame_init_params      (pLameGF),                         __LINE__);
     }
     catch (std::runtime_error const& e) {
-        cerr << e.what() << '\n';
+		pthread_mutex_lock(&consoleMtx);
+        cerr << e.what() << "\n";
+		pthread_mutex_unlock(&consoleMtx);
         ::lame_close(pLameGF);
         inPcm.close();
         return nullptr;
@@ -184,9 +170,7 @@ static void* encode2mp3Worker(void* file)
 
         auto const bytesRead = static_cast<int32_t>(inPcm.gcount());
         auto const samplesRead = bytesRead / (pcmHeader.bitsPerSample / 8) / pcmHeader.numChannels;
-
-        if (pcmHeader.bitsPerSample == 8)
-            transform8To16Bit(pcmBuffer, sizeof(pcmBuffer)); // TODO: bad quality, need resampling
+        assert(pcmHeader.bitsPerSample / 8 == 2); // 16 bit per sample
 
         if (isMono) {
             //TODO: allocate and fill with 0's once, test if it s not modified by the lame_encode_buffer()
@@ -196,21 +180,18 @@ static void* encode2mp3Worker(void* file)
         else
             toWrite = ::lame_encode_buffer_interleaved(pLameGF, pcmBuffer, samplesRead, mp3Buffer, MP3_BUF_SIZE);
 
-        if (toWrite == 0)
-            std::cerr << "toWrite == 0 on " << inFileName << '\n';
-
         outMp3.write(reinterpret_cast<char*>(&mp3Buffer), toWrite);
     } while (!inPcm.eof());
 
     toWrite = ::lame_encode_flush(pLameGF, mp3Buffer, MP3_BUF_SIZE);
     outMp3.write(reinterpret_cast<char*>(&mp3Buffer), toWrite);
-
-    ::lame_close(pLameGF);
-    inPcm.close();
+    outMp3.flush();
     outMp3.close();
+    inPcm.close();
+    ::lame_close(pLameGF);
 
     pthread_mutex_lock(&consoleMtx);
-    cout << "Finished encoding file " << outFileName << '\n';
+    cout << "Finished encoding file " << outFileName << "\n";
     pthread_mutex_unlock(&consoleMtx);
     return nullptr;
 }
@@ -237,7 +218,7 @@ static void printExtentionsMsg()
     cout << "Supported file extentions: ";
     for (auto const& ext : extentions)
         cout << '.' << ext << " ";
-    cout << '\n';
+    cout << "\n";
 }
 
 
