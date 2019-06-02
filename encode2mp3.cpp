@@ -114,6 +114,11 @@ static string changeExtention(string fileName)
 // sadly, lame doesn't support multithread encoding for a singlle file...
 static void* encode2mp3Worker(void* file)
 {
+	if (!file) {
+		cerr << "ERROR! File path is NULL!\n";
+		return nullptr;
+	}
+	
     auto inFileName  = static_cast<char const*>(file);
     auto outFileName = changeExtention(inFileName);
     std::ifstream inPcm(inFileName, std::ifstream::in);
@@ -133,7 +138,7 @@ static void* encode2mp3Worker(void* file)
         return nullptr;
     }
     else
-        cout << "Encoding file to " << outFileName << "\n";
+        cout << "Encoding file to " << outFileName << std::endl; // need to flush or cerr above discards newline somehow...
 
     pthread_mutex_unlock(&consoleMtx);
 
@@ -148,9 +153,9 @@ static void* encode2mp3Worker(void* file)
         okOrThrow(::lame_init_params      (pLameGF),                         __LINE__);
     }
     catch (std::runtime_error const& e) {
-		pthread_mutex_lock(&consoleMtx);
+        pthread_mutex_lock(&consoleMtx);
         cerr << e.what() << "\n";
-		pthread_mutex_unlock(&consoleMtx);
+        pthread_mutex_unlock(&consoleMtx);
         ::lame_close(pLameGF);
         inPcm.close();
         return nullptr;
@@ -221,6 +226,26 @@ static void printExtentionsMsg()
     cout << "\n";
 }
 
+// check if a terminal successfully passed path separators because
+// UNIX-type (under Windows too, cygwin, for ex.) terminals strip
+// escape character '\' so c:\folder1\folder2 passed as a parameter
+// becomes c:folder1folder2
+// Windows terminal (cmd.exe) doesn't do that
+static bool checkPath(const char* rawPath)
+{
+	if (!rawPath)
+		return false;
+	
+    while (*rawPath) {
+        if (*rawPath == '/' || *rawPath == '\\')
+            return true;
+        
+        ++rawPath;
+    }
+    
+    return false;
+}
+
 
 int main(int argNum, char** args)
 {
@@ -230,6 +255,11 @@ int main(int argNum, char** args)
         cerr << "Error: folder not specified!\n"
                 "Usage: encode2mp3 folder_name\n";
 
+        return -1;
+    }
+    
+    if (!checkPath(args[1])) {
+        cerr << "ERROR! UNIX console detected! Please, use '/' or '\\\\' path separators instead of '\\'\n";
         return -1;
     }
 
