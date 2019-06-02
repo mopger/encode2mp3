@@ -114,11 +114,11 @@ static string changeExtention(string fileName)
 // sadly, lame doesn't support multithread encoding for a singlle file...
 static void* encode2mp3Worker(void* file)
 {
-	if (!file) {
-		cerr << "ERROR! File path is NULL!\n";
-		return nullptr;
-	}
-	
+    if (!file) {
+        cerr << "ERROR! File path is NULL!\n";
+        return nullptr;
+    }
+
     auto inFileName  = static_cast<char const*>(file);
     auto outFileName = changeExtention(inFileName);
     std::ifstream inPcm(inFileName, std::ifstream::in);
@@ -233,9 +233,9 @@ static void printExtentionsMsg()
 // Windows terminal (cmd.exe) doesn't do that
 static bool checkPath(const char* rawPath)
 {
-	if (!rawPath)
-		return false;
-	
+    if (!rawPath)
+        return false;
+
     while (*rawPath) {
         if (*rawPath == '/' || *rawPath == '\\')
             return true;

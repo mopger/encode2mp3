@@ -3,11 +3,11 @@
 #include <string>
 
 #if defined (__linux__) || defined (__linux) || defined (__gnu_linux__)
-  #include <dirent.h>
-  #include <sys/stat.h>
+#include <dirent.h>
+#include <sys/stat.h>
 #else
-  #include <windows.h>
-  #include <tchar.h>
+#include <windows.h>
+#include <tchar.h>
 #endif
 
 #include "filesystem.hpp"
@@ -29,9 +29,9 @@ static void printErrorAndAbort(char const* msg)
 // DIR or FILE or DIE!
 static PathType getPathType(char const* path)
 {
-	if (!path)
-		printErrorAndAbort("ERROR: path is NULL!");
-	
+    if (!path)
+        printErrorAndAbort("ERROR: path is NULL!");
+
     struct stat s;
 
     if (::stat(path, &s) == 0) {
@@ -49,9 +49,9 @@ static PathType getPathType(char const* path)
 // directory dir, terminates the app on error
 PathNames getCanonicalDirContents(char const* dir)
 {
-	if (!dir)
-		printErrorAndAbort("ERROR: directory name is NULL!");
-	
+    if (!dir)
+        printErrorAndAbort("ERROR: directory name is NULL!");
+
     constexpr auto const separator  = "/";
     PathNames pathNames;
     char realPath[PATH_MAX] = { 0, };
@@ -81,9 +81,9 @@ PathNames getCanonicalDirContents(char const* dir)
 #else
 PathNames getCanonicalDirContents(char const* dir)
 {
-	if (!dir)
-		printErrorAndAbort("ERROR: directory name is NULL!");
-	
+    if (!dir)
+        printErrorAndAbort("ERROR: directory name is NULL!");
+
     auto static const constexpr BUF_SZ     = 4096;
     auto static const constexpr separator  = "\\";
     char tmpBuf[MAX_PATH] = { 0, };
