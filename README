@@ -1,7 +1,7 @@
 Prerequisites:
   cmake
 
-Links:
+Lame sources:
   lame https://sourceforge.net/projects/lame/files/latest/download
 
 To build on Linux:
