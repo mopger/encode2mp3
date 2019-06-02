@@ -127,18 +127,18 @@ static void* encode2mp3Worker(void* file)
 
     if (!isValid(pcmHeader)) {
         if (pcmHeader.audioFormat != 1)
-            cerr << "ERROR! Unsupported audio format: " << inFileName << "\n";
+            cerr << "ERROR! Unsupported audio format: " << inFileName << std::endl; // cmd swallows "\n"s
         else if (pcmHeader.bitsPerSample != 16)
-            cerr << "ERROR! Only 16 bit per sample is supported: " << inFileName << "\n";
+            cerr << "ERROR! Only 16 bit per sample is supported: " << inFileName << std::endl;
         else
-            cerr << "ERROR! Broken header: " << inFileName << "\n";
+            cerr << "ERROR! Broken header: " << inFileName << std::endl;
 
         pthread_mutex_unlock(&consoleMtx);
         inPcm.close();
         return nullptr;
     }
     else
-        cout << "Encoding file to " << outFileName << std::endl; // need to flush or cerr above discards newline somehow...
+        cout << "Encoding file to " << outFileName << std::endl;
 
     pthread_mutex_unlock(&consoleMtx);
 
@@ -154,7 +154,7 @@ static void* encode2mp3Worker(void* file)
     }
     catch (std::runtime_error const& e) {
         pthread_mutex_lock(&consoleMtx);
-        cerr << e.what() << "\n";
+        cerr << e.what() << std::endl;
         pthread_mutex_unlock(&consoleMtx);
         ::lame_close(pLameGF);
         inPcm.close();
@@ -196,7 +196,7 @@ static void* encode2mp3Worker(void* file)
     ::lame_close(pLameGF);
 
     pthread_mutex_lock(&consoleMtx);
-    cout << "Finished encoding file " << outFileName << "\n";
+    cout << "Finished encoding file " << outFileName << std::endl;
     pthread_mutex_unlock(&consoleMtx);
     return nullptr;
 }
