@@ -25,3 +25,12 @@ if (WIN32)
 endif (WIN32)
 
 target_link_libraries (${PROJECT_NAME} mp3lame)
+
+
+enable_testing()
+
+set(TEST_FILE_FILTER test_file_filter)
+add_executable(${TEST_FILE_FILTER} tests/test_file_filter.cpp filesystem.cpp)
+link_directories()
+add_test(NAME "test_file_filter" COMMAND ${TEST_FILE_FILTER})
+
