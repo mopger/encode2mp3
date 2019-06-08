@@ -1,11 +1,18 @@
 #include "filesystem.hpp"
-#include "encode2mp3.hpp"
-
-//std::vector<std::string> extentions = {"wav", "pcm", "wave"};
 
 int main(int argc, char** args)
 {
-    //auto const& files = filterFiles(getCanonicalDirContents(args[1]), extentions);
+    if (argc < 3)
+        return -1;
 
-    return 0;
+    std::vector<std::string> const extentions = {"wav", "pcm", "wave"};
+    auto const& files = filterFiles(getCanonicalDirContents(args[2]), extentions);
+
+    try {
+        size_t const numFiles = std::stoi(args[1]);
+        if (files.size() == numFiles)
+            return 0;
+    } catch (...) {
+    }
+    return -1;
 }

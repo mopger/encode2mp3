@@ -31,6 +31,8 @@ enable_testing()
 
 set(TEST_FILE_FILTER test_file_filter)
 add_executable(${TEST_FILE_FILTER} tests/test_file_filter.cpp filesystem.cpp)
-link_directories()
-add_test(NAME "test_file_filter" COMMAND ${TEST_FILE_FILTER})
+
+add_test(NAME "test_file_filter1" COMMAND ${TEST_FILE_FILTER} 3 ${PROJECT_SOURCE_DIR}/wave)
+add_test(NAME "test_file_filter2" COMMAND ${TEST_FILE_FILTER} 0 ${PROJECT_SOURCE_DIR}/tests/unsupported)
+add_test(NAME "test_file_filter3" COMMAND ${TEST_FILE_FILTER} 4 ${PROJECT_SOURCE_DIR}/tests/mixed)
 
