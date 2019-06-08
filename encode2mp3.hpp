@@ -40,6 +40,4 @@ struct PcmHeader
 };
 #pragma pack (pop)
 
-using PathNames = std::vector<PathName>;
-
 #endif // ENCODE2MP3_H
