@@ -23,3 +23,6 @@ To build on Windows under Cygwin:
  8) generate Makefile by executing 'cmake -G "Unix Makefiles" ..'
  9) execute 'make'
 10) start encoding by executing './encode2mp3 ../wave'
+
+To run tests:
+  execute 'make test'
