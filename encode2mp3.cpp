@@ -49,11 +49,11 @@ static PcmHeader readPcmHeader(std::ifstream& pcm)
 static bool isValid(PcmHeader const& h)
 {
     return h.audioFormat   == 1
-            && h.bitsPerSample == 16 // transforming 8 bit to 16 resulting in an awful quality mp3
-            && h.numChannels    > 0
-            && h.sampleRate     > 0
-            && h.bitsPerSample  > 0
-            && ::memcmp(h.subchunk2ID, "data", 4) == 0;
+        && h.bitsPerSample == 16 // transforming 8 bit to 16 resulting in an awful quality mp3
+        && h.numChannels    > 0
+        && h.sampleRate     > 0
+        && h.bitsPerSample  > 0
+        && ::memcmp(h.subchunk2ID, "data", 4) == 0;
 }
 
 // test lame functions for success or throw with details
