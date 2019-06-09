@@ -129,13 +129,16 @@ static void* encode2mp3Worker(void* file)
     const constexpr size_t PCM_BUF_SIZE = 8192; // L+R channels of 16 bits each
     const constexpr size_t MP3_BUF_SIZE = 8192; // bytes
 
-    int16_t*     pcmBuffer        = (int16_t*)malloc(PCM_BUF_SIZE); memset(pcmBuffer, 0, PCM_BUF_SIZE);
-    uint8_t*     mp3Buffer        = (uint8_t*)malloc(MP3_BUF_SIZE); memset(mp3Buffer, 0, MP3_BUF_SIZE);
+    int16_t*     pcmBuffer        = (int16_t*)malloc(PCM_BUF_SIZE);
+    uint8_t*     mp3Buffer        = (uint8_t*)malloc(MP3_BUF_SIZE);
     int32_t      toWrite          = 0;
     auto         outMp3           = std::ofstream(outFileName.c_str(), std::ios_base::binary | std::ofstream::out);
     int32_t      samplesReadTotal = 0;
     size_t const toRead           = PCM_BUF_SIZE / (isMono ? 2u : 1u); // read half of the buffer size in MONO mode
     bool         isFinish         = false;
+
+    memset(pcmBuffer, 0, PCM_BUF_SIZE);
+    memset(mp3Buffer, 0, MP3_BUF_SIZE);
 
     do {
         inPcm.read(reinterpret_cast<char*>(pcmBuffer), static_cast<std::streamsize>(toRead));
@@ -153,8 +156,11 @@ static void* encode2mp3Worker(void* file)
 
         if (isMono) {
             //TODO: allocate and fill with 0's once, test if it s not modified by the lame_encode_buffer()
-            int16_t dummyPcmRightChannel[sizeof(pcmBuffer)] = {}; // right channel is ignored in MONO mode
-            toWrite = ::lame_encode_buffer(pLameGF, pcmBuffer, dummyPcmRightChannel, samplesRead, mp3Buffer, MP3_BUF_SIZE);
+            //int16_t emptyChannel[sizeof(pcmBuffer)] = {}; // right channel is ignored in MONO mode
+            int16_t* emptyChannel = pcmBuffer + PCM_BUF_SIZE / 2 / 2;
+            //memset(emptyChannel, 0, PCM_BUF_SIZE / 2 / 2);
+            assert(std::all_of(emptyChannel, emptyChannel + PCM_BUF_SIZE / 2 / 2, [](auto b){ return b == 0; })); // all == 0
+            toWrite = ::lame_encode_buffer(pLameGF, pcmBuffer, emptyChannel, samplesRead, mp3Buffer, MP3_BUF_SIZE);
         }
         else
             toWrite = ::lame_encode_buffer_interleaved(pLameGF, pcmBuffer, samplesRead, mp3Buffer, MP3_BUF_SIZE);
