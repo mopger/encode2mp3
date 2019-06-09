@@ -87,7 +87,7 @@ static void* encode2mp3Worker(void* file)
     auto    inPcm            = std::ifstream(inFileName, std::ifstream::in);
     auto    pcmHeader        = readPcmHeader(inPcm);
     int64_t samplesDeclared  = pcmHeader.subchunk2Size / pcmHeader.blockAlign;
-    pthread_mutex_lock(&consoleMtx);
+    ::pthread_mutex_lock(&consoleMtx);
 
     if (!isValid(pcmHeader)) {
         if (pcmHeader.audioFormat != 1)
@@ -97,7 +97,7 @@ static void* encode2mp3Worker(void* file)
         else
             cerr << "ERROR! Broken header: " << inFileName << endl;
 
-        pthread_mutex_unlock(&consoleMtx);
+        ::pthread_mutex_unlock(&consoleMtx);
         inPcm.close();
         return nullptr;
     }
@@ -106,7 +106,7 @@ static void* encode2mp3Worker(void* file)
     cout << "Number of samples: " << samplesDeclared << endl;
 
     assert(pcmHeader.bitsPerSample / 8 == 2); // 16 bit per sample
-    pthread_mutex_unlock(&consoleMtx);
+    ::pthread_mutex_unlock(&consoleMtx);
 
     lame_t pLameGF = lame_init();
     bool const isMono = pcmHeader.numChannels == 1;
@@ -119,9 +119,9 @@ static void* encode2mp3Worker(void* file)
         okOrThrow(::lame_init_params      (pLameGF),                         __LINE__);
     }
     catch (std::runtime_error const& e) {
-        pthread_mutex_lock(&consoleMtx);
+        ::pthread_mutex_lock(&consoleMtx);
         cerr << e.what() << endl;
-        pthread_mutex_unlock(&consoleMtx);
+        ::pthread_mutex_unlock(&consoleMtx);
         ::lame_close(pLameGF);
         inPcm.close();
         return nullptr;
@@ -175,9 +175,9 @@ static void* encode2mp3Worker(void* file)
     inPcm.close();
     ::lame_close(pLameGF);
 
-    pthread_mutex_lock(&consoleMtx);
+    ::pthread_mutex_lock(&consoleMtx);
     cout << "Finished encoding file " << outFileName << endl;
-    pthread_mutex_unlock(&consoleMtx);
+    ::pthread_mutex_unlock(&consoleMtx);
     return nullptr;
 }
 
