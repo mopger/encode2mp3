@@ -82,10 +82,10 @@ static void* encode2mp3Worker(void* file)
         return nullptr;
     }
 
-    auto    inFileName  = static_cast<char const*>(file);
-    auto    outFileName = changeExtention(inFileName);
-    auto    inPcm       = std::ifstream(inFileName, std::ifstream::in);
-    auto    pcmHeader   = readPcmHeader(inPcm);
+    auto    inFileName       = static_cast<char const*>(file);
+    auto    outFileName      = changeExtention(inFileName);
+    auto    inPcm            = std::ifstream(inFileName, std::ifstream::in);
+    auto    pcmHeader        = readPcmHeader(inPcm);
     int64_t samplesDeclared  = pcmHeader.subchunk2Size / pcmHeader.blockAlign;
     pthread_mutex_lock(&consoleMtx);
 
