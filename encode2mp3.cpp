@@ -30,9 +30,10 @@ using std::vector;
 using std::string;
 using std::cout;
 using std::cerr;
+using std::endl;
 
 static pthread_mutex_t consoleMtx;
-static std::vector<std::string> extentions = { "wav", "wave", "pcm" }; // lower case
+static vector<string> extentions = { "wav", "wave", "pcm" }; // lower case
 
 
 // read PCM file into PcmHeader structure
@@ -48,11 +49,11 @@ static PcmHeader readPcmHeader(std::ifstream& pcm)
 static bool isValid(PcmHeader const& h)
 {
     return h.audioFormat   == 1
-        && h.bitsPerSample == 16 // transforming 8 bit to 16 resulting in an awful quality mp3
-        && h.numChannels    > 0
-        && h.sampleRate     > 0
-        && h.bitsPerSample  > 0
-        && ::memcmp(h.subchunk2ID, "data", 4) == 0;
+            && h.bitsPerSample == 16 // transforming 8 bit to 16 resulting in an awful quality mp3
+            && h.numChannels    > 0
+            && h.sampleRate     > 0
+            && h.bitsPerSample  > 0
+            && ::memcmp(h.subchunk2ID, "data", 4) == 0;
 }
 
 // test lame functions for success or throw with details
@@ -90,11 +91,11 @@ static void* encode2mp3Worker(void* file)
 
     if (!isValid(pcmHeader)) {
         if (pcmHeader.audioFormat != 1)
-            cerr << "ERROR! Unsupported audio format: " << inFileName << std::endl; // cmd swallows "\n"s
+            cerr << "ERROR! Unsupported audio format: " << inFileName << endl; // cmd swallows "\n"s
         else if (pcmHeader.bitsPerSample != 16)
-            cerr << "ERROR! Only 16 bit per sample is supported: " << inFileName << std::endl;
+            cerr << "ERROR! Only 16 bit per sample is supported: " << inFileName << endl;
         else
-            cerr << "ERROR! Broken header: " << inFileName << std::endl;
+            cerr << "ERROR! Broken header: " << inFileName << endl;
 
         pthread_mutex_unlock(&consoleMtx);
         inPcm.close();
@@ -102,7 +103,7 @@ static void* encode2mp3Worker(void* file)
     }
 
     cout << "Encoding file to " << outFileName << "\n";
-    cout << "Number of samples: " << samplesDeclared << std::endl;
+    cout << "Number of samples: " << samplesDeclared << endl;
 
     assert(pcmHeader.bitsPerSample / 8 == 2); // 16 bit per sample
     pthread_mutex_unlock(&consoleMtx);
@@ -119,7 +120,7 @@ static void* encode2mp3Worker(void* file)
     }
     catch (std::runtime_error const& e) {
         pthread_mutex_lock(&consoleMtx);
-        cerr << e.what() << std::endl;
+        cerr << e.what() << endl;
         pthread_mutex_unlock(&consoleMtx);
         ::lame_close(pLameGF);
         inPcm.close();
@@ -129,19 +130,19 @@ static void* encode2mp3Worker(void* file)
     const constexpr size_t PCM_BUF_SIZE = 8192; // L+R channels of 16 bits each
     const constexpr size_t MP3_BUF_SIZE = 8192; // bytes
 
-    int16_t*     pcmBuffer        = (int16_t*)malloc(PCM_BUF_SIZE);
-    uint8_t*     mp3Buffer        = (uint8_t*)malloc(MP3_BUF_SIZE);
-    int32_t      toWrite          = 0;
+    auto         pcmBuffer        = vector<int16_t>(PCM_BUF_SIZE);
+    auto         mp3Buffer        = vector<uint8_t>(MP3_BUF_SIZE);
     auto         outMp3           = std::ofstream(outFileName.c_str(), std::ios_base::binary | std::ofstream::out);
+    int32_t      toWrite          = 0;
     int32_t      samplesReadTotal = 0;
+    bool         isMoreSamples    = true;
     size_t const toRead           = PCM_BUF_SIZE / (isMono ? 2u : 1u); // read half of the buffer size in MONO mode
-    bool         isFinish         = false;
 
-    memset(pcmBuffer, 0, PCM_BUF_SIZE);
-    memset(mp3Buffer, 0, MP3_BUF_SIZE);
+    assert(std::all_of(begin(pcmBuffer), end(pcmBuffer), [](auto b){ return b == 0; }));
+    assert(std::all_of(begin(mp3Buffer), end(mp3Buffer), [](auto b){ return b == 0; }));
 
     do {
-        inPcm.read(reinterpret_cast<char*>(pcmBuffer), static_cast<std::streamsize>(toRead));
+        inPcm.read(reinterpret_cast<char*>(pcmBuffer.data()), static_cast<std::streamsize>(toRead));
 
         auto const bytesRead = static_cast<int32_t>(inPcm.gcount());
         assert(bytesRead != 0);
@@ -149,38 +150,33 @@ static void* encode2mp3Worker(void* file)
 
         if (samplesReadTotal + samplesRead >= samplesDeclared) {
             samplesRead = static_cast<int32_t>(samplesDeclared - samplesReadTotal);
-            isFinish = true;
+            isMoreSamples = false;
         }
 
         samplesReadTotal += samplesRead;
 
         if (isMono) {
-            //TODO: allocate and fill with 0's once, test if it s not modified by the lame_encode_buffer()
-            //int16_t emptyChannel[sizeof(pcmBuffer)] = {}; // right channel is ignored in MONO mode
-            int16_t* emptyChannel = pcmBuffer + PCM_BUF_SIZE / 2 / 2;
-            //memset(emptyChannel, 0, PCM_BUF_SIZE / 2 / 2);
-            assert(std::all_of(emptyChannel, emptyChannel + PCM_BUF_SIZE / 2 / 2, [](auto b){ return b == 0; })); // all == 0
-            toWrite = ::lame_encode_buffer(pLameGF, pcmBuffer, emptyChannel, samplesRead, mp3Buffer, MP3_BUF_SIZE);
+            int16_t* emptyChannel = pcmBuffer.data() + pcmBuffer.size() / 2;
+            assert(std::all_of(emptyChannel, emptyChannel + pcmBuffer.size() / 2, [](auto b){ return b == 0; })); // is right channel empty?
+            toWrite = ::lame_encode_buffer(pLameGF, pcmBuffer.data(), emptyChannel, samplesRead, mp3Buffer.data(), MP3_BUF_SIZE);
         }
         else
-            toWrite = ::lame_encode_buffer_interleaved(pLameGF, pcmBuffer, samplesRead, mp3Buffer, MP3_BUF_SIZE);
+            toWrite = ::lame_encode_buffer_interleaved(pLameGF, pcmBuffer.data(), samplesRead, mp3Buffer.data(), MP3_BUF_SIZE);
 
         assert(toWrite >= 0);
-        outMp3.write(reinterpret_cast<char*>(mp3Buffer), toWrite); // memset(mp3Buffer, 0, MP3_BUF_SIZE);
-    } while (!inPcm.eof() && !isFinish);
+        outMp3.write(reinterpret_cast<char*>(mp3Buffer.data()), toWrite);
+    } while (!inPcm.eof() && isMoreSamples);
 
     assert(samplesDeclared == samplesReadTotal);
-    toWrite = ::lame_encode_flush(pLameGF, mp3Buffer, MP3_BUF_SIZE);
-    outMp3.write(reinterpret_cast<char*>(mp3Buffer), toWrite);
+    toWrite = ::lame_encode_flush(pLameGF, mp3Buffer.data(), MP3_BUF_SIZE);
+    outMp3.write(reinterpret_cast<char*>(mp3Buffer.data()), toWrite);
     outMp3.flush();
     outMp3.close();
     inPcm.close();
     ::lame_close(pLameGF);
-    if (mp3Buffer) free(mp3Buffer);
-    if (pcmBuffer) free(pcmBuffer);
 
     pthread_mutex_lock(&consoleMtx);
-    cout << "Finished encoding file " << outFileName << std::endl;
+    cout << "Finished encoding file " << outFileName << endl;
     pthread_mutex_unlock(&consoleMtx);
     return nullptr;
 }
