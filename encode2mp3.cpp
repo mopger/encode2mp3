@@ -130,16 +130,13 @@ static void* encode2mp3Worker(void* file)
     const constexpr size_t PCM_BUF_SIZE = 8192; // L+R channels of 16 bits each
     const constexpr size_t MP3_BUF_SIZE = 8192; // bytes
 
-    auto         pcmBuffer        = vector<int16_t>(PCM_BUF_SIZE);
-    auto         mp3Buffer        = vector<uint8_t>(MP3_BUF_SIZE);
+    auto         pcmBuffer        = vector<int16_t>(PCM_BUF_SIZE, 0);
+    auto         mp3Buffer        = vector<uint8_t>(MP3_BUF_SIZE, 0);
     auto         outMp3           = std::ofstream(outFileName.c_str(), std::ios_base::binary | std::ofstream::out);
     int32_t      toWrite          = 0;
     int32_t      samplesReadTotal = 0;
     bool         isMoreSamples    = true;
     size_t const toRead           = PCM_BUF_SIZE / (isMono ? 2u : 1u); // read half of the buffer size in MONO mode
-
-    assert(std::all_of(begin(pcmBuffer), end(pcmBuffer), [](auto b){ return b == 0; }));
-    assert(std::all_of(begin(mp3Buffer), end(mp3Buffer), [](auto b){ return b == 0; }));
 
     do {
         inPcm.read(reinterpret_cast<char*>(pcmBuffer.data()), static_cast<std::streamsize>(toRead));
