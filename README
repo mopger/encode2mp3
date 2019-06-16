@@ -16,7 +16,7 @@ To build on Windows under Cygwin:
  1) install Cygwin with make and gcc-g++ packages
  2) download and extract lame sources
  3) open lame-3.100/include/libmp3lame.sym and remove "lame_init_old" line
- 4) build lame by executing './configure && make' (frontend rule will fail)
+ 4) build lame by executing './configure && make' (frontend rule will fail, thats OK)
  5) copy lame-3.100/include/lame.h to encode2mp3/includes/lame/
  6) copy lame-3.100/libmp3lame/.libs/libmp3lame.a to encode2mp3/libs/
  7) change dir to encode2mp3/build/
