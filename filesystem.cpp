@@ -91,7 +91,6 @@ PathNames getCanonicalDirContents(char const* dir)
 
     auto static const constexpr BUF_SZ     = 4096;
     auto static const constexpr separator  = "\\";
-    char tmpBuf[MAX_PATH] = { 0, };
     TCHAR   buffer[BUF_SZ] = TEXT("");
     TCHAR** lppPart        = { nullptr };
     auto rv = ::GetFullPathName(dir, BUF_SZ, buffer, lppPart);
@@ -122,7 +121,7 @@ PathNames getCanonicalDirContents(char const* dir)
     PathNames pathNames;
 
     do {
-        bool const isDir = ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0;
+        bool const isDir = (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
         auto path = std::string(buffer).append(separator).append(ffd.cFileName);
         auto type = isDir ? PathType::Dir : PathType::File;
         pathNames.push_back({ type, std::move(path) });
