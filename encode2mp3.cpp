@@ -40,10 +40,11 @@ static vector<string> extentions = { "wav", "wave", "pcm" }; // lower case
 static PcmHeader readPcmHeader(std::ifstream& pcm)
 {
     PcmHeader pcmHeader;
-    static_assert (sizeof(PcmHeader) == 44, "Wrong PCM header structure!");
+    static_assert(sizeof(PcmHeader) == 44, "Wrong PCM header structure!");
     pcm.read(reinterpret_cast<char*>(&pcmHeader), sizeof(PcmHeader));
     return pcmHeader;
 }
+
 
 // check if PCM header contains required data
 static bool isValid(PcmHeader const& h)
@@ -56,12 +57,14 @@ static bool isValid(PcmHeader const& h)
         && ::memcmp(h.subchunk2ID, "data", 4) == 0;
 }
 
+
 // test lame functions for success or throw with details
 static void okOrThrow(int32_t status, int line)
 {
     if (status != lame_errorcodes_t::LAME_OKAY)
         throw std::runtime_error("ERROR: lame failed with code " + std::to_string(status) + " at line " + std::to_string(line));
 }
+
 
 // replace file extention with "mp3"
 static string changeExtention(string fileName)
@@ -72,6 +75,7 @@ static string changeExtention(string fileName)
     fileName.append("mp3");
     return fileName;
 }
+
 
 // thread worker: 1 file - 1 worker
 // sadly, lame doesn't support multithread encoding for a singlle file...
@@ -87,11 +91,12 @@ static void* encode2mp3Worker(void* file)
     auto    inPcm            = std::ifstream(inFileName, std::ifstream::in);
     auto    pcmHeader        = readPcmHeader(inPcm);
     int64_t samplesDeclared  = pcmHeader.subchunk2Size / pcmHeader.blockAlign;
+
     ::pthread_mutex_lock(&consoleMtx);
 
     if (!isValid(pcmHeader)) {
         if (pcmHeader.audioFormat != 1)
-            cerr << "ERROR! Unsupported audio format: " << inFileName << endl; // cmd swallows "\n"s
+            cerr << "ERROR! Unsupported audio format: " << inFileName << endl; // cmd.exe swallows "\n"s sometimes
         else if (pcmHeader.bitsPerSample != 16)
             cerr << "ERROR! Only 16 bit per sample is supported: " << inFileName << endl;
         else
@@ -102,10 +107,7 @@ static void* encode2mp3Worker(void* file)
         return nullptr;
     }
 
-    cout << "Encoding file to " << outFileName << "\n";
-    cout << "Number of samples: " << samplesDeclared << endl;
-
-    assert(pcmHeader.bitsPerSample / 8 == 2); // 16 bit per sample
+    cout << "Encoding file to " << outFileName << "\n" << "Number of samples: " << samplesDeclared << endl;
     ::pthread_mutex_unlock(&consoleMtx);
 
     lame_t pLameGF = lame_init();
@@ -114,7 +116,7 @@ static void* encode2mp3Worker(void* file)
     try {
         okOrThrow(::lame_set_mode         (pLameGF, isMono ? MONO : STEREO), __LINE__);
         okOrThrow(::lame_set_in_samplerate(pLameGF, pcmHeader.sampleRate),   __LINE__);
-        okOrThrow(::lame_set_VBR          (pLameGF, vbr_off),                __LINE__); // keep it off, affects mp3 length somehow
+        okOrThrow(::lame_set_VBR          (pLameGF, vbr_off),                __LINE__); // keep it off, affects resulting mp3 length somehow
         okOrThrow(::lame_set_quality      (pLameGF, 5),                      __LINE__);
         okOrThrow(::lame_init_params      (pLameGF),                         __LINE__);
     }
@@ -130,8 +132,8 @@ static void* encode2mp3Worker(void* file)
     const constexpr size_t PCM_BUF_SIZE = 8192; // L+R channels of 16 bits each
     const constexpr size_t MP3_BUF_SIZE = 8192; // bytes
 
-    auto         pcmBuffer        = vector<int16_t>(PCM_BUF_SIZE, 0);
-    auto         mp3Buffer        = vector<uint8_t>(MP3_BUF_SIZE, 0);
+    auto         pcmBuffer        = vector<int16_t>(PCM_BUF_SIZE, 0); // vector fills itself at construction by default
+    auto         mp3Buffer        = vector<uint8_t>(MP3_BUF_SIZE, 0); // element's value, so make it explicit
     auto         outMp3           = std::ofstream(outFileName.c_str(), std::ios_base::binary | std::ofstream::out);
     int32_t      toWrite          = 0;
     int32_t      samplesReadTotal = 0;
@@ -177,6 +179,7 @@ static void* encode2mp3Worker(void* file)
     ::pthread_mutex_unlock(&consoleMtx);
     return nullptr;
 }
+
 
 // run worker for each file in a list
 static void encodeAll2Mp3(PathNames const& files)

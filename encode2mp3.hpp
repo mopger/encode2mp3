@@ -21,10 +21,11 @@ struct PathName
     std::string name;
 };
 
+//canonical format
 #pragma pack(push, 1)
 struct PcmHeader
 {
-    char     chunkID[4]; // all char[] here is text fields
+    char     chunkID[4]; // all char[] here is text fields, w/o null termination
     uint32_t chunkSize;
     char     format[4];
     char     subchunk1ID[4];
