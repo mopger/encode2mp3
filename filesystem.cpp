@@ -165,10 +165,12 @@ PathNames filterFiles(PathNames const& pathNames, vector<string> const& extentio
                            std::back_inserter(extentionAllLowerBackwards),
                            [](char c) { return ::tolower(c); });
 
-            bool const isEqual = std::equal(extentionAllLowerBackwards.rbegin(),
-                                            extentionAllLowerBackwards.rbegin() + extSize,
-                                            extention.begin());
-            if (isEqual) {
+            bool const isEqualExtention = std::equal(
+                        extentionAllLowerBackwards.rbegin(),
+                        extentionAllLowerBackwards.rbegin() + extSize,
+                        extention.begin());
+
+            if (isEqualExtention) {
                 out.push_back(pathName);
                 break;
             }
